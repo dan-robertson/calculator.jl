@@ -46,3 +46,13 @@ A sample of operations currently included are
 The user interface is based
 on [WebRender UI](https://github.com/dan-robertson/wrui) with a small
 interface to it being in `wr.jl`.
+
+# Usage
+
+Currently we do not build this into any kind of standalone executable. Run
+
+    $ julia -Lsrc/calc.jl
+    ...
+    julia> Calc.test()
+
+Press `escape` to exit the calculator.
