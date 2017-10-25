@@ -22,7 +22,7 @@ function render(::DLB,::Float32,::Float32,::LayoutData{Void}) end
 function layoutString(b :: DLB, str)
     shape = shapeText(b, str)
     w,lot = simpleTextLayout(shape)
-    LayoutData{LaidOutText}(20,10,w,lot)
+    LayoutData{LaidOutText}(20,5,w,lot)
 end
 render(b::DLB,x::Float32,y::Float32,l::LayoutData{LaidOutText}) =
     pushText!(b, Rect(x,y-l.height,l.width,l.height+l.depth),
@@ -81,22 +81,27 @@ function render(b::DLB,x::Float32,y::Float32,l::LayoutData{Array{LayoutData,1}})
     end
 end
 
-function layoutExpr(b, x) # when not an expr we just convert to string by default
+# when not an expr we just convert to string by default
+function layoutExpr(b, x; brackets=false)
     buf = IOBuffer()
     stream = IOContext(buf, compact=true, limit=true)
     show(stream, x)
     line = takebuf_string(buf)
     # hopefully only one line!
-    layoutString(b, line)
+    if ' ' ∈ line && brackets
+        layoutString(b, "(" * line * ")")
+    else
+        layoutString(b, line)
+    end
 end
 
-function layoutExpr(b, x::Symbol)
+function layoutExpr(b, x::Symbol; brackets=false)
     # TODO: maybe use mathematical italic if single letter
     s = string(x)
     layoutString(b, s)
 end
 
-function layoutExpr(b, expr::Expr)
+function layoutExpr(b, expr::Expr; brackets=false)
     if expr.head == :macrocall
         if expr.args[1] == :(@big_str) || expr.args[1] == :(@int128_str)
             layoutString(b, expr.args[2])
@@ -107,7 +112,7 @@ function layoutExpr(b, expr::Expr)
         f = expr.args[1]
         if f == :+ || f == :-
             op = layoutRow(layoutSpace(6),layoutExpr(b,f),layoutSpace(6))
-            l = layoutSpace(0,0,0)
+            l = brackets ? layoutString(b, "(") : layoutSpace(0,0,0)
             notfirst = false
             for a in expr.args[2:end]
                 if notfirst
@@ -116,24 +121,29 @@ function layoutExpr(b, expr::Expr)
                 l = layoutRow(l,layoutExpr(b,a))
                 notfirst = true
             end
-            l
+            brackets ? layoutRow(l, layoutString(b, ")")) : l
         elseif f == :*
-            layoutRow((layoutExpr(b,x) for x=expr.args[2:end])...)
+            l = layoutRow((layoutExpr(b,x,brackets=true)
+                           for x=expr.args[2:end])...)
+            brackets ? layoutRow(layoutString(b, "("), l, layoutString(b, ")")) :
+                l
         elseif f == :/ || f == ://
             assert(length(expr.args) == 3)
             top = layoutExpr(b,expr.args[2])
             bot = layoutExpr(b,expr.args[3])
-            layoutFraction(top,bot)
+            l = layoutFraction(top,bot)
+            brackets ? layoutRow(layoutString(b ,"("), l, layoutString(b, ")")) :
+                l
         elseif f == :^
             assert(length(expr.args) == 3)
-            base = layoutExpr(b, expr.args[2])
+            base = layoutExpr(b, expr.args[2], brackets=true)
             expt = layoutExpr(b, expr.args[3])
             raise1 = (2f0/3f0)*base.height
             raise2 = expt.depth + raise1
             raise = raise1 >= expt.depth ? raise1 : raise2
             layoutRow(base, raiseBox(raise,expt))
         else
-            l = layoutRow(layoutString(b, string(expr.args[1])),
+            l = layoutRow(layoutString(b, fstring(expr.args[1])),
                           layoutString(b, "("))
             notfirst = false
             for it in expr.args[2:end]
@@ -151,10 +161,16 @@ function layoutExpr(b, expr::Expr)
     end
 end
 
+greekNameMap = Dict(
+    :gamma => "Γ",
+    :beta  => "β"
+)
+fstring(sym::Symbol) = sym ∈ keys(greekNameMap) ? greekNameMap[sym] : sym
+
 function renderStackItem!(b::DLB, item::ReduceWrapper, x, bottom, w)
     # we ignore w
     # which is probably wrong
-    layout = layoutExpr(b, item.val);
+    layout = layoutExpr(b, item.val)
     bottom = bottom - layout.height - layout.depth
     render(b, Float32(x), Float32(bottom + layout.height), layout)
     bottom
