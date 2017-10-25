@@ -44,5 +44,5 @@ end
 
 function push(stack::Stack, vals...; simplification=NumericSimplification())
     simp(x) = simplify(simplification, x)
-    Stack([stack.items ; [map(simp, vals)...]])
+    Stack(Any[stack.items ; Any[map(simp, vals)...]])
 end

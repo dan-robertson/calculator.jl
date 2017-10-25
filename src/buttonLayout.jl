@@ -21,8 +21,10 @@ firstRowButtons = [swap pi sqrt inverse hyperbolic]
 vectorButtons = [openbracket comma closebracket pack unpack
                  index map reduce build SO.gcd]
 
+x = Button(Calc.OperationDescription("x", "", Calc.varOp(:x)))
+
 combinatoricsButtons = [choose factorial abs inv round
-                        gamma beta floor ceil pow] # TODO: more of these
+                        gamma beta floor x pow] # TODO: more of these
 
 extraButtons = [combinatoricsButtons ; vectorButtons ; trigButtons ; firstRowButtons]
 

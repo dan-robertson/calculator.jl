@@ -13,6 +13,8 @@ include("multibutton.jl") # Buttons with hyperbolic / inverse options
 include("meta-operation.jl") # e.g. map, reduce
 include("simplify.jl") # controls semantics of what happens between completing operation and pushing to stack
 include("vectors.jl") # vectors that can be built on the stack.
+include("reduce.jl") # algebra via Pkg.add("Reduce")
+include("symbolic-layout.jl") # drawing fractions, etc. in 2d
 include("standardOperations.jl")
 include("buttonLayout.jl")
 
