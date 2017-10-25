@@ -56,6 +56,10 @@ for unary in [:sin, :cos, :tan,
     end |> eval
 end
 
+function Base.lgamma(x::ReduceWrapper)
+    log(gamma(x))
+end
+
 for binary in [:min, :max, :beta,
                :besseli, :besselj, :besselk, :bessely,
                :polygamma, :^, :+, :-, :*, :/]
@@ -64,6 +68,12 @@ for binary in [:min, :max, :beta,
         function Base.$binary(x::ReduceWrapper, y::ReduceWrapper)
             ReduceWrapper(Reduce.rcall(Expr(:call, $qn,
                                             x.val, y.val)))
+        end
+        function Base.$binary(x::ReduceWrapper, y::Number)
+            $binary(x,convert(ReduceWrapper,y))
+        end
+        function Base.$binary(x::Number, y::ReduceWrapper)
+            $binary(convert(ReduceWrapper,x),y)
         end
     end |> eval
 end
