@@ -10,6 +10,7 @@ include("operation.jl") # How to do
 include("associativity.jl")
 include("entry.jl") # How to enter new values
 include("multibutton.jl") # Buttons with hyperbolic / inverse options
+include("submenu.jl") # Button reveals a new grid of buttons to click
 include("meta-operation.jl") # e.g. map, reduce
 include("simplify.jl") # controls semantics of what happens between completing operation and pushing to stack
 include("vectors.jl") # vectors that can be built on the stack.

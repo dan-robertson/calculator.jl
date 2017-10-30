@@ -109,12 +109,13 @@ function handleMouseEvent(s :: CalcState, size, e :: MouseEvent)
     end
     for (r, buttons) in positionButtons(s, size)[2]
         if r.x <= e.x && e.x < r.x + r.w && r.y <= e.y && e.y < r.y + r.h
-            handleMouseEvent(buttons, s, r, e)
+            subMenu = length(s.buttons) > 1 && buttons == s.buttons[end]
+            handleMouseEvent(buttons, s, r, e, subMenu)
         end
     end
 end
 
-function handleMouseEvent(bs :: Array{Button, 2}, s, r, e :: MouseEvent)
+function handleMouseEvent(bs :: Array{Button, 2}, s, r, e :: MouseEvent, isSubMenu)
     # find the button
     (rows,cols) = size(bs)
     cellw, cellh = r.w / cols, r.h / rows
@@ -127,25 +128,28 @@ function handleMouseEvent(bs :: Array{Button, 2}, s, r, e :: MouseEvent)
         (e.x < rect.x + rect.w || (col + 1 < cols && bs[row+1,col+2] == button)) && 
         (rect.y <= e.y || (row > 0 && bs[row,col+1] == button)) && 
         (e.y < rect.y + rect.h || (row + 1 < rows && bs[row+2,col+1] == button))
-        handleMouseEvent(button, s, e)
+        handleMouseEvent(button, s, e, isSubMenu)
     end
 end
 
-function handleMouseEvent(b :: Button, s, e :: MouseMoveEvent)
+function handleMouseEvent(b :: Button, s, e :: MouseMoveEvent, isSubMenu)
     s.highlightedButton = b
 end
 
-function handleMouseEvent(b :: Button1, s, e :: MouseMoveEvent)
+function handleMouseEvent(b :: Button1, s, e :: MouseMoveEvent, isSubMenu)
     s.highlightedButton = b
 end
 
-function handleMouseEvent(b :: Button, s, e :: LeftMouseButtonPressed)
+function handleMouseEvent(b :: Button, s, e :: LeftMouseButtonPressed, isSubMenu)
     s.pressedButton = b
 end
 
-function handleMouseEvent(b :: Button, s, e :: LeftMouseButtonReleased)
+function handleMouseEvent(b :: Button, s, e :: LeftMouseButtonReleased, isSubMenu)
     if s.pressedButton == b
         buttonClicked(s, b)
+        if isSubMenu && length(s.buttons) > 1 && shouldCloseSubMenus(s, b)
+            s.buttons = s.buttons[1:1] # pop everything
+        end
     end
 end
 

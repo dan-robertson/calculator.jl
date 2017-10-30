@@ -79,6 +79,7 @@ buttonHint(x, s) = ""
 
 buttonSize(b) = (b.w, b.h)
 buttonSize(b :: Button1) = (b.w, b.h)
+buttonSize(b :: DeadButton) = (1, 1)
 
 function renderButtons(b, state, r::Rect, buttons::Array{Button, 2}, highlightedButton=nothing)
     # draw a background for all the buttons
@@ -139,7 +140,8 @@ function renderButton(b, state, text::String, r::Rect, colour::Colour)
 end
 
 function renderButton(b, state, button::DeadButton, r, highlighted)
-    renderButton(b, state, "", r, Colour(0.94))
+    # just render as background
+    # renderButton(b, state, "", r, Colour(0.94))
 end
 
 # Messages
