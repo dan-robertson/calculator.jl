@@ -40,6 +40,8 @@ function doFullOperation(c :: OperationContext, s :: CalcState, op)
     end
     try
         operationPostscript(c, s, op)
+    catch e
+        displayError(s, e)
     end
 end
 doFullOperation(s :: CalcState, op) = doFullOperation(s.operationContext, s, op)
@@ -49,9 +51,6 @@ function operationPrelude(con :: OperationContext, s :: CalcState, op)
 end
 function doOperation(con :: OperationContext, s :: CalcState, op)
     doOperation(s, op)
-end
-function operationPostscript(con :: OperationContext, s :: CalcState, op)
-    operationPostscript(con, s, op)
 end
 
 function operationPrelude(s :: CalcState, unknownOperation)
@@ -64,8 +63,12 @@ function operationPrelude(con :: OperationContext, s :: CalcState, op :: Operati
     operationPrelude(con, s, op.operation)
 end
 
-function operationPostscript(s :: CalcState, unknownOperation)
+function operationPostscript(::OperationContext, s::CalcState,::Operation)
     clearModifiers(s)
+end
+function operationPostscript(::OperationContext,::CalcState,::FlagOperation) end
+function operationPostscript(c::OperationContext,s::CalcState,op::OperationDescription)
+    operationPostscript(c, s, op.operation)
 end
 
 function doOperation(s :: CalcState, unknownOperation)

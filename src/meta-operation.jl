@@ -77,8 +77,8 @@ function doOperation(c::Union{MapContext, ReduceContext}, s :: CalcState, b :: B
 end
 
 function operationPostscript(::Union{MapContext, ReduceContext}, ::CalcState, ::MetaOperation) end
-function operationPostscript(::Union{MapContext, ReduceContext}, s::CalcState, op)
+function operationPostscript(::Union{MapContext, ReduceContext}, s::CalcState, op::Operation)
     s.operationContext = DefaultContext()
-    operationPostscript(s, op)
+    operationPostscript(s.operationContest, s, op)
 end
 
