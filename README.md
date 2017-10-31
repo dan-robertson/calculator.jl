@@ -48,6 +48,10 @@ The user interface is based
 on [WebRender UI](https://github.com/dan-robertson/wrui) with a small
 interface to it being in `wr.jl`.
 
+# Example
+
+![Animation of example usage](sample.gif)
+
 # Usage
 
 Currently we do not build this into any kind of standalone executable. Run
