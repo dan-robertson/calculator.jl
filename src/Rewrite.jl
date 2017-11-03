@@ -605,6 +605,8 @@ function _rewrite(expr, matcher, sub, limit, n, allowImmediateRecursion)
         n = n + 1
         if allowImmediateRecursion
             return _rewrite(expr2, matcher, sub, limit, n, allowImmediateRecursion)
+        else
+            expr = expr2
         end
     end
     # recurse
