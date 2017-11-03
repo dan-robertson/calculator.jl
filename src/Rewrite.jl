@@ -104,7 +104,9 @@ expressionify(x::Complex) = :( $(real(x)) + ($(imag(x)) * im))
 function matchMany(exprs, matchers, mapping)
     # TODO: try to pick a good order to do the matching
     mappings = Set([mapping])
-    for (e,m) in zip(exprs,matchers)
+    pairs = sort(collect(zip(exprs,matchers)),
+                 by=(x->estimateMatchDifficulty(x[2],mapping)), rev=true)
+    for (e,m) in pairs
         mappings2 = Set()
         for mapping in mappings
             try
@@ -122,6 +124,18 @@ function matchMany(exprs, matchers, mapping)
     res
 end
 
+# high values for more difficult matches
+# more difficult matches should be done first
+# to quickly get rid of bad solutions
+function estimateMatchDifficulty(matcher::Expr, mapping)
+    d = 0
+    for x in drop(matcher.args,1)
+        d = d + estimateMatchDifficulty(x, mapping)
+    end
+    d
+end
+estimateMatchDifficulty(matcher::Symbol, mapping) = matcher ∈ keys(mapping) ? 500 : 100
+estimateMatchDifficulty(matcher, mapping) = 500
 
 function matchExpr(::Val{:macrocall}, expression, matcher, mapping)
     m = args[1]
@@ -144,7 +158,8 @@ function matchExpr(::Val{:call}, expression, matcher::Expr, mapping)
         throw(MatchingError(expression, matcher))
     end
     alg = if isa(matcher.args[1], Expr)
-        if matcher.args[1].head == :$
+        if matcher.args[1].head == :vect && length(matcher.args[1].args) == 1 &&
+            isa(matcher.args[1].args[1], Symbol)
             NoAlgebra()
         else
             throw(MatchingError(expression, matcher))
@@ -182,7 +197,7 @@ getAlgebra(::Val{:inv}) = getAlgebra(Val{:*})
 """
 When matching a function call we have either
 match(foo(args...), foo(matchers...)) -> may succeed
-match(foo(args...), \$f(matcher...)) -> may succeed with f => foo
+match(foo(args...), [f](matcher...)) -> may succeed with f => foo
 """
 function matchAlgebra(::NoAlgebra, expr::Expr, matcher::Expr, mapping)
     fname = expr.args[1]
@@ -195,7 +210,7 @@ function matchAlgebra(::NoAlgebra, expr::Expr, matcher::Expr, mapping)
         else
             throw(MatchingError(expr, matcher))
         end
-    elseif isa(mfun, Expr) && mfun.head == :$
+    elseif isa(mfun, Expr) && mfun.head == :vect && length(mfun.args) == 1 && isa(mfun.args[1], Symbol)
         fmapping = unify(fmapping, mfun.args[1] => fname)
     end
     if length(expr.args) != length(matcher.args)
@@ -378,11 +393,12 @@ function matchAlgebra(g::GroupAlgebra, expr::Expr, matcher::Expr, mapping)
     # determine if expr is an expression in g
     exword = toWord(g,expr)
     maword = toWord(g,matcher)
+    sort!(maword, by=(x->estimateMatchDifficulty(x[1],mapping)+100abs(x[2])), rev=true)
     mappings = Set()
     if !g.commutative
         error("TODO: match noncommutative groups")
     end
-    mag_helper_com(g, mappings, mapping, exword, start(exword),
+    mag_helper_com(g, mappings, Set([mapping]), exword, start(exword),
                    maword, start(maword))
     if length(mappings) == 0
         throw(MatchingError(expr, matcher))
@@ -391,13 +407,28 @@ function matchAlgebra(g::GroupAlgebra, expr::Expr, matcher::Expr, mapping)
     end
 end
 
-function mag_helper_com(g::GroupAlgebra, mappings::Set, mapping, exword_iter, exword_state,
+mightMatchExtension(g::GroupAlgebra, matching::Symbol) = true
+function mightMatchExtension(g::GroupAlgebra, matching::Expr)
+    if matching.head == :call
+        f = matching.args[1]
+        if f == g.op || f == g.inverse || f == g.opinv
+            true
+        else
+            false
+        end
+    else
+        true
+    end
+end
+mightMatchExtension(::GroupAlgebra, ::Any) = false
+
+function mag_helper_com(g::GroupAlgebra, mappings::Set, mappingset, exword_iter, exword_state,
                         maword_iter, maword_state)
     if !done(maword_iter, maword_state)
         (matcher, pow), state2 = next(maword_iter, maword_state)
         if pow == 0
             # skip as doesn't contribute
-            mag_helper_com(g, mappings, mapping, exword_iter, exword_state, maword_iter, state2)
+            mag_helper_com(g, mappings, mappingset, exword_iter, exword_state, maword_iter, state2)
         elseif done(maword_iter, state2)
             # special case: one matcher left, so match it against everything left
             exword = collect(rest(exword_iter, exword_state))
@@ -408,20 +439,30 @@ function mag_helper_com(g::GroupAlgebra, mappings::Set, mapping, exword_iter, ex
             gcdpow = reduce(gcd, (pow for (x,pow) in exword))
             if mod(gcdpow,pow) == 0 && pow != 1
                 rootword = [(x,div(p,pow)) for (x,p) in exword]
-                try
-                    mappings2 = match(fromWord(g,rootword), matcher, mapping)
-                    for mapping2 in mappings2
-                        push!(mappings, mapping2)
+                mappings2 = Set()
+                workedFor = 0
+                for mapping in mappingset
+                    try
+                        push!(mappings2,match(fromWord(g,rootword), matcher, mapping)...)
+                        workedFor = workedFor + 1
                     end
-                    return # It worked so don't need to try the other way
                 end
-            end
-            try
-                matcher2 = pow == 1 ? matcher : Expr(:call, g.pow, matcher, pow)
-                mappings2 = match(fromWord(g,exword), matcher2, mapping)
                 for mapping2 in mappings2
                     push!(mappings, mapping2)
                 end
+                if length(mappingset) == workedFor
+                    return # It worked so don't need # TODO: o try the other way
+                end
+            end
+            matcher2 = pow == 1 ? matcher : Expr(:call, g.pow, matcher, pow)
+            mappings2 = Set()
+            for mapping in mappingset
+                try
+                    push!(mappings2,match(fromWord(g,exword), matcher2, mapping)...)
+                end
+            end
+            for mapping2 in mappings2
+                push!(mappings, mapping2)
             end
         else
             mag_helper_com1(g, mappings, mapping, exword_iter, exword_state,
@@ -432,7 +473,7 @@ function mag_helper_com(g::GroupAlgebra, mappings::Set, mapping, exword_iter, ex
     end
 end
 
-function mag_helper_com1(g::GroupAlgebra, mappings::Set, mapping, exword_iter, exword_state,
+function mag_helper_com1(g::GroupAlgebra, mappings::Set, mappingset, exword_iter, exword_state,
                          maword_iter, maword_state, matcher, pow, exword_part, exword_skip)
     if !done(exword_iter, exword_state)
         # match against one letter
@@ -443,45 +484,64 @@ function mag_helper_com1(g::GroupAlgebra, mappings::Set, mapping, exword_iter, e
         if mod(gcdpow,pow) == 0 && pow != 1
             # we can match m^pow against exword as m against exword^(1/pow)
             rootword = [(x,div(p,pow)) for (x,p) in exword]
-            try
-                println("match $(fromWord(g,rootword)), $matcher")
-                mappings2 = match(fromWord(g,rootword), matcher, mapping)
-                for mapping2 in mappings2
-                    it, st = if length(exword_skip) > 0
-                        iter = Base.flatten((exword_skip, rest(exword_iter, state2)))
-                        iter, start(iter)
-                    else
-                        exword_iter, state2
-                    end
-                    mag_helper_com(g, mappings, mapping2, it, st,
+            mappings2 = Set()
+            workedFor = 0
+            for mapping in mappingset
+                try
+                    push!(mappings2,match(fromWord(g,rootword), matcher, mapping)...)
+                    workedFor = workedFor + 1
+                end
+            end
+            it, st = if length(exword_skip) > 0
+                iter = Base.flatten((exword_skip, rest(exword_iter, state2)))
+                iter, start(iter)
+            else
+                exword_iter, state2
+            end
+            if length(mappings2) > 30
+                for mappingset2 in Base.partition(mappings2, 15)
+                    mag_helper_com(g, mappings, Set(mappingset2), it, st,
                                    maword_iter, maword_state)
                 end
-                # there was a match so we can skip the normal try
-                skipNormalMatch = true
+            else
+                mag_helper_com(g, mappings, mappings2, it, st,
+                               maword_iter, maword_state)
             end
+            # if there was a match for everything we can skip the normal attempt
+            skipNormalMatch = workedFor == length(mappingset)
         end
         # we try to match exword against m^pow
         if !skipNormalMatch
-            try
-                matcher2 = pow == 1 ? matcher : Expr(:call, g.pow, matcher, pow)
-                mappings2 = match(fromWord(g,exword), matcher2, mapping)
-                for mapping2 in mappings2
-                    it, st = if length(exword_skip) > 0
-                        iter = Base.flatten((exword_skip, rest(exword_iter, state2)))
-                        iter, start(iter)
-                    else
-                        exword_iter, state2
-                    end
-                    mag_helper_com(g, mappings, mapping2, it, st,
+            matcher2 = pow == 1 ? matcher : Expr(:call, g.pow, matcher, pow)
+            mappings2 = Set()
+            for mapping in mappingset
+                try
+                    push!(mappings2,match(fromWord(g,exword), matcher2, mapping)...)
+                end
+            end
+            it, st = if length(exword_skip) > 0
+                iter = Base.flatten((exword_skip, rest(exword_iter, state2)))
+                iter, start(iter)
+            else
+                exword_iter, state2
+            end
+            if length(mappings2) > 30
+                for mappingset2 in Base.partition(mappings2, 15)
+                    mag_helper_com(g, mappings, Set(mappingset2), it, st,
                                    maword_iter, maword_state)
                 end
+            else
+                mag_helper_com(g, mappings, mappings2, it, st,
+                               maword_iter, maword_state)
             end
         end
         # we try extending the current word
-        mag_helper_com1(g, mappings, mapping, exword_iter, state2,
-                        maword_iter, maword_state, matcher, pow, exword, exword_skip)
+        if mightMatchExtension(g, matcher)
+            mag_helper_com1(g, mappings, mappingset, exword_iter, state2,
+                            maword_iter, maword_state, matcher, pow, exword, exword_skip)
+        end
         # we try skipping the current letter
-        mag_helper_com1(g, mappings, mapping, exword_iter, state2, maword_iter, maword_state,
+        mag_helper_com1(g, mappings, mappingset, exword_iter, state2, maword_iter, maword_state,
                         matcher, pow, exword_part, [exword_skip ; (x,pow)])
         # TODO: if abs(pow) > 1 try splitting it up. Should only do this if abs(pow) is small though
     else
@@ -492,7 +552,8 @@ end
 
 
 
-# Rewriting function
+
+# Substituting function
 
 function substitute(substituter::Function, mapping::Mapping)
     substituter(;mapping...)
@@ -509,8 +570,26 @@ function substitute(substituter::Expr, mapping::Mapping)
           for arg in substituter.args)...)
 end
 
+# Rewriting function
+
 export rewrite
-function rewrite(expr, matcher, sub, limit=20, n=0)
+"""
+    rewrite(expr, matcher, sub; limit=20, allowImmediateRecursion=true)
+
+search through expr for something that matches matcher and when it is
+found, replace it by substituting sub. limit is the maximum number of
+times rewrite may recur into/on a single subexpression. if
+allowImmediateRecursion is set to false then rewrite cannot rewrite
+the same subexpression twice, so for exmple the rule [f](x,y) -> f(y,x)
+can only be applied once foo(x,y) ~> foo(y,x) instead of repeatedly
+until the limit is reaced.
+"""
+
+function rewrite(expr, matcher, sub; limit=20, allowImmediateRecursion=true)
+    _rewrite(expr, matcher, sub, limit, 0, allowImmediateRecursion)
+end
+
+function _rewrite(expr, matcher, sub, limit, n, allowImmediateRecursion)
     if n >= limit
         return expr
     end
@@ -523,16 +602,18 @@ function rewrite(expr, matcher, sub, limit=20, n=0)
     end
     if ms != ()
         expr2 = substitute(sub, ms)
-        rewrite(expr2, matcher, sub, limit, n+1)
-    else
-        # recurse
-        if isa(expr, Expr) && expr.head == :call
-            rewritten = [i == 1 ? arg : rewrite(arg, matcher, sub, limit, n)
-                         for (i,arg) in enumerate(expr.args)]
-            Expr(:call, rewritten...)
-        else
-            expr
+        n = n + 1
+        if allowImmediateRecursion
+            return _rewrite(expr2, matcher, sub, limit, n, allowImmediateRecursion)
         end
+    end
+    # recurse
+    if isa(expr, Expr) && expr.head == :call
+        rewritten = [i == 1 ? arg : _rewrite(arg, matcher, sub, limit, n, allowImmediateRecursion)
+                     for (i,arg) in enumerate(expr.args)]
+        Expr(:call, rewritten...)
+    else
+        expr
     end
 end
 
