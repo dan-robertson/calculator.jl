@@ -84,6 +84,12 @@ end
 match(object::Expr, matcher::Symbol, mapping) = [unify(mapping, matcher=>object)]
 match(object, matcher::Symbol, mapping) = [unify(mapping, matcher=>object)]
 function match(object, matcher, mapping)
+    if isa(matcher, Expr) && matcher.head == :(::) 
+        # println("$object :: $(matcher.args[2]) ? ")
+        if isa(object, matcher.args[2])
+            return match(object, matcher.args[1], mapping)
+        end
+    end
     if object == matcher
         [mapping]
     else
@@ -100,6 +106,7 @@ end
 expressionify(x) = x
 expressionify(x::Rational) = :( $(x.num) / $(x.den) )
 expressionify(x::Complex) = :( $(real(x)) + ($(imag(x)) * im))
+expressionify(x::Integer) = x < 0 ? :(-$(-x)) : x
 
 function matchMany(exprs, matchers, mapping)
     # TODO: try to pick a good order to do the matching
@@ -132,10 +139,11 @@ function estimateMatchDifficulty(matcher::Expr, mapping)
     for x in drop(matcher.args,1)
         d = d + estimateMatchDifficulty(x, mapping)
     end
-    d
+    (d * 105) ÷ 100
 end
 estimateMatchDifficulty(matcher::Symbol, mapping) = matcher ∈ keys(mapping) ? 500 : 100
 estimateMatchDifficulty(matcher, mapping) = 500
+estimateMatchDifficulty(matcher::Type, mapping) = 750
 
 function matchExpr(::Val{:macrocall}, expression, matcher, mapping)
     m = args[1]
@@ -188,10 +196,10 @@ immutable MultiplicationType <: Canonicalisation end
 
 getAlgebra(other) = NoAlgebra()
 getAlgebra(::Val{:+}) = GroupAlgebra(0,:+,:-,:-,:*,false,true,AdditionType())
-getAlgebra(::Val{:-}) = getAlgebra(Val{:+})
-getAlgebra(::Val{:*}) = GroupAlgebra(0,:*,:inv,:/,:^,true,true,MultiplicationType())
-getAlgebra(::Val{:/}) = getAlgebra(Val{:*})
-getAlgebra(::Val{:inv}) = getAlgebra(Val{:*})
+getAlgebra(::Val{:-}) = getAlgebra(Val{:+}())
+getAlgebra(::Val{:*}) = GroupAlgebra(1,:*,:inv,:/,:^,true,true,MultiplicationType())
+getAlgebra(::Val{:/}) = getAlgebra(Val{:*}())
+getAlgebra(::Val{:inv}) = getAlgebra(Val{:*}())
 
 
 """
@@ -357,6 +365,7 @@ function fromWord(g::GroupAlgebra,::MultiplicationType,word)
     end
 end
 
+# TODO: not even sure this ever gets called
 function matchAlgebra(g::GroupAlgebra, object, matcher::Expr, mapping)
     if !g.commutative
         throw(MatchingError(object,matcher))
@@ -378,7 +387,7 @@ function matchAlgebra(g::GroupAlgebra, object, matcher::Expr, mapping)
     mappings = []
     for (x,p) in symbolBits
         try
-            res = unify(map,p>0 ? x=>expr : x=>Expr(:call, g.inv, expr),
+            res = unify(map,p>0 ? x=>expr : x=>Expr(:call, g.inverse, expr),
                         (y=>g.identity for (y,p) in symbolBits if y != x)...)
             push!(res, mappings)
         end
@@ -390,10 +399,32 @@ function matchAlgebra(g::GroupAlgebra, object, matcher::Expr, mapping)
 end
 
 function matchAlgebra(g::GroupAlgebra, expr::Expr, matcher::Expr, mapping)
-    # determine if expr is an expression in g
+    # println("matchAlgebra: $expr, $matcher")
+    # determine if expr is an expression in g, otherwise we don't bother looking for a match
+    if expr.head != :call
+        throw(MatchingError(expr, matcher))
+    else
+        f = expr.args[1]
+        if !(f == g.op || f == g.inverse || f == g.opinv || f == g.pow)
+            throw(MatchingError(expr, matcher))
+        end
+    end
     exword = toWord(g,expr)
     maword = toWord(g,matcher)
+    if length(maword) == 1 && maword[1][2] == -1 # matching -foo
+        if length(exword) == 1 && (exword[1][2] == -1 || isa(exword[1][1], Number) && exword[1][1] < 0)
+            # this is ok. Carry on
+            # TODO: do this faster here
+        elseif all((x,p)->p<0, exword)
+            # this is ok too. Carry on
+        else
+            throw(MatchingError(expr, matcher))
+        end
+    end
+    # println("exword: $exword")
+    # println("maword: $maword")
     sort!(maword, by=(x->estimateMatchDifficulty(x[1],mapping)+100abs(x[2])), rev=true)
+    # println("maword: $maword")
     mappings = Set()
     if !g.commutative
         error("TODO: match noncommutative groups")
@@ -407,7 +438,7 @@ function matchAlgebra(g::GroupAlgebra, expr::Expr, matcher::Expr, mapping)
     end
 end
 
-mightMatchExtension(g::GroupAlgebra, matching::Symbol) = true
+mightMatchExtension(::GroupAlgebra, ::Symbol) = true
 function mightMatchExtension(g::GroupAlgebra, matching::Expr)
     if matching.head == :call
         f = matching.args[1]
@@ -416,6 +447,8 @@ function mightMatchExtension(g::GroupAlgebra, matching::Expr)
         else
             false
         end
+    elseif matching.head == :(::)
+        matching.args[2] == Expr
     else
         true
     end
@@ -443,6 +476,7 @@ function mag_helper_com(g::GroupAlgebra, mappings::Set, mappingset, exword_iter,
                 workedFor = 0
                 for mapping in mappingset
                     try
+                        # println("matching $(fromWord(g,rootword)), $matcher")
                         push!(mappings2,match(fromWord(g,rootword), matcher, mapping)...)
                         workedFor = workedFor + 1
                     end
@@ -458,6 +492,7 @@ function mag_helper_com(g::GroupAlgebra, mappings::Set, mappingset, exword_iter,
             mappings2 = Set()
             for mapping in mappingset
                 try
+                    # println("matching $(fromWord(g,exword)), $matcher")
                     push!(mappings2,match(fromWord(g,exword), matcher2, mapping)...)
                 end
             end
@@ -465,7 +500,7 @@ function mag_helper_com(g::GroupAlgebra, mappings::Set, mappingset, exword_iter,
                 push!(mappings, mapping2)
             end
         else
-            mag_helper_com1(g, mappings, mapping, exword_iter, exword_state,
+            mag_helper_com1(g, mappings, mappingset, exword_iter, exword_state,
                             maword_iter, state2, matcher, pow, [], [])
         end
     elseif done(exword_iter, exword_state)
@@ -488,6 +523,7 @@ function mag_helper_com1(g::GroupAlgebra, mappings::Set, mappingset, exword_iter
             workedFor = 0
             for mapping in mappingset
                 try
+                    # println("matching $(fromWord(g,rootword)), $matcher")
                     push!(mappings2,match(fromWord(g,rootword), matcher, mapping)...)
                     workedFor = workedFor + 1
                 end
@@ -516,6 +552,7 @@ function mag_helper_com1(g::GroupAlgebra, mappings::Set, mappingset, exword_iter
             mappings2 = Set()
             for mapping in mappingset
                 try
+                    # println("matching $(fromWord(g,exword)), $matcher")
                     push!(mappings2,match(fromWord(g,exword), matcher2, mapping)...)
                 end
             end
@@ -572,52 +609,257 @@ end
 
 # Rewriting function
 
+export Rule
+immutable Rule
+    match
+    sub
+end
+
+
 export rewrite
 """
-    rewrite(expr, matcher, sub; limit=20, allowImmediateRecursion=true)
+    rewrite(expr, matcher, sub;   limit=20, allowImmediateRematch=true)
+    rewrite(expr, rule::Rule;     limit=20, allowImmediateRematch=true)
+    rewrite(expr, rules::Rule...; limit=20, allowImmediateRematch=true, onMatch=:allRules)
 
 search through expr for something that matches matcher and when it is
 found, replace it by substituting sub. limit is the maximum number of
 times rewrite may recur into/on a single subexpression. if
-allowImmediateRecursion is set to false then rewrite cannot rewrite
+allowImmediateRematch is set to false then rewrite cannot rewrite
 the same subexpression twice, so for exmple the rule [f](x,y) -> f(y,x)
 can only be applied once foo(x,y) ~> foo(y,x) instead of repeatedly
 until the limit is reaced.
-"""
 
-function rewrite(expr, matcher, sub; limit=20, allowImmediateRecursion=true)
-    _rewrite(expr, matcher, sub, limit, 0, allowImmediateRecursion)
+If multiple rules are given then onMatch can be either :allRules or :deeper.
+If it is :deeper then all rules are tried on subexpressions of the
+result of applying a rule before the other rules are tried on the
+whole expression.
+If it is :allRules then all rules are tried on the whole expression
+and then they are tried on the subexpressions.
+"""
+function rewrite(expr, rules::Rule...; limit=20, allowImmediateRematch=true, onMatch=:allRules)
+    rewrite(expr, collect(Rule, rules),
+            limit=limit, allowImmediateRematch=allowImmediateRematch, onMatch=onMatch)
 end
 
-function _rewrite(expr, matcher, sub, limit, n, allowImmediateRecursion)
+function rewrite(expr, rules::Array{Rule,1}; limit=20, allowImmediateRematch=true, onMatch=:allRules)
+    _rewrite(expr, rules, 1, limit, 0, allowImmediateRematch, onMatch, NoAlgebra())
+end
+
+function rewrite(expr, matcher, sub; kvs...)
+    rewrite(expr, Rule(matcher, sub); kvs...)
+end
+
+shouldTryMatch(x, matcher) = true
+function shouldTryMatch(g::GroupAlgebra, matcher::Expr)
+    if matcher.head == :call
+        alg = getAlgebra(Val{matcher.args[1]}()) 
+        g != alg
+    else
+        true
+    end
+end
+
+# onMatch should be :deeper => [try to match self again], do all rules on
+#                              depper subexprs, then try rules on result
+#                   :allRules => [try to match self again], try to match all rules,
+#                                try rules on deeper subexprs
+function _rewrite(expr, rules, rulestart, limit, n, allowImmediateRematch, onMatch, inAlg)
     if n >= limit
         return expr
     end
-    ms = ()
-    try
-        m = match(expr, matcher, emptyMapping)
-        if length(m) > 0
-            ms = m[1]
+    orulestart = rulestart
+    ms = nothing
+    for (rulenum, rule) in rest(enumerate(rules), (rulestart, rulestart))
+        if !shouldTryMatch(inAlg, rule.match)
+            continue
+        end
+        try
+            m = match(expr, rule.match, emptyMapping)
+            if length(m) > 0
+                ms = (rule.sub, m[1])
+                rulestart = rulenum
+                break
+            end
         end
     end
-    if ms != ()
-        expr2 = substitute(sub, ms)
+    if ms != nothing
+        expr2 = substitute(ms...)
         n = n + 1
-        if allowImmediateRecursion
-            return _rewrite(expr2, matcher, sub, limit, n, allowImmediateRecursion)
+        if allowImmediateRematch
+            n2 = n + 1
+            rule = rules[rulestart]
+            pm = ms[2]
+            try
+                while n2 < limit
+                    m = match(expr2, rule.match, emptyMapping)
+                    if length(m) > 0
+                        if m[1] == pm
+                            break
+                        end
+                        expr2 = substitute(rule.sub, m[1])
+                        pm = m[1]
+                    else
+                        break
+                    end
+                    n2 = n2 + 1
+                end
+            end
+        end
+        expr = expr2
+    end
+    if onMatch == :allRules && rulestart <= length(rules)
+        # try other rules
+        expr = _rewrite(expr, rules, rulestart + 1, limit, n, allowImmediateRematch, onMatch, inAlg)
+    end
+    if orulestart == 1
+        # recurse
+        expr = if isa(expr, Expr) && expr.head == :call
+            alg = getAlgebra(Val{expr.args[1]}())
+            rewritten = [i == 1 ? arg :
+                         _rewrite(arg, rules, 1, limit, n, allowImmediateRematch, onMatch, alg)
+                         for (i,arg) in enumerate(expr.args)]
+            Expr(:call, rewritten...)
         else
-            expr = expr2
+            expr
         end
     end
-    # recurse
-    if isa(expr, Expr) && expr.head == :call
-        rewritten = [i == 1 ? arg : _rewrite(arg, matcher, sub, limit, n, allowImmediateRecursion)
-                     for (i,arg) in enumerate(expr.args)]
-        Expr(:call, rewritten...)
+    if onMatch == :deeper && rulestart != orulestart && rulestart <= length(rules)
+        expr = _rewrite(expr, rules, rulestart + 1, limit, n, allowImmediateRematch, onMatch, inAlg)
+    end
+    expr
+end
+
+
+module Rules
+
+import Rewrite
+using Rewrite: Rule, rewrite
+
+"""
+    @rule matcher --> substitute
+
+matcher should follow the normal matcher syntax. substitute is interpreted as:
+
+If substitute contains no expressions with \$ (e.g. \$x, \$(foo(bar,baz)))
+then it is passed to substitute as an expression.
+If it contains an expression with \$ then it it gets converted into the
+function returning exactly that expression with variables from the match
+substitued.
+If it begins with begin (i.e. a block) then it is interpreted as the body
+of the function to do the substitution
+"""
+macro rule(expr::Expr)
+    if expr.head != :-->
+        error("invalid rule syntax, --> in wrong place")
+    end
+    matcher = expr.args[1]
+    evalTypes(matcher)
+    substituter = expr.args[2]
+    if (isa(substituter, Expr) && substituter.head == :block) || hasDollarSigns(substituter)
+        # make a plain function
+        symbols = Set()
+        collectSymbols(matcher, symbols)
+        substituter = isa(substituter, Expr) && substituter.head == :block ? 
+            Expr(:quote, Expr(:$, substituter)) : # seems to stop weird hygene issues
+            Expr(:quote, substituter)
+        subexpr = Expr(:->,
+                       Expr(:tuple,
+                            Expr(:parameters,
+                                 (Expr(:kw,var,:nothing) for var in symbols)...)),
+                       substituter)
+        substituter = subexpr
     else
-        expr
+        substituter = Expr(:quote, substituter)
+    end
+    r = Expr(:call, :Rule,
+         Expr(:quote, matcher),
+         substituter)
+    # println(r)
+    r
+end
+
+"""
+    @defrule ruleset matcher --> substitute
+
+Like @rule but saves the rule into ruleset
+"""
+macro defrule(set, rule)
+    :(push!($(Symbol(set, :_rules)), @rule $rule))
+end
+
+macro defrule(foo)
+    dump(foo)
+    error("Not enough arguments to @defrule")
+end
+
+"""
+    @defrules name
+
+Define a new set of rules (by giving a variable name)
+"""
+macro defrules(name, kvs...)
+    fname = esc(name)
+    kvsym = gensym("kvs")
+    exprsym = gensym("expr")
+    rulesname = esc(Symbol(name, :_rules))
+    fdef = Expr(:call, fname,
+                Expr(:parameters, 
+                     (begin @assert isa(kv,Expr) && (kv.head == :kw || kv.head == :(=))
+                      Expr(:kw, kv.args[1], kv.args[2])
+                      end for kv in kvs)...,
+                     Expr(:(...), kvsym)),
+                exprsym)
+    fcall = Expr(:call, esc(:rewrite),
+                 Expr(:parameters,
+                      (Expr(:kw,kv.args[1],kv.args[1]) for kv in kvs)...,
+                      Expr(:(...), kvsym)),
+                 exprsym,
+                 rulesname)
+    rulefun = Expr(:(=), fdef, fcall)
+    quote
+        $rulesname = Rule[]
+        $rulefun
     end
 end
 
-# End of Module1
+collectSymbols(s::Symbol, set) = push!(set, s)
+collectSymbols(::Any, ::Any) = nothing
+function collectSymbols(x::Expr, set)
+    if x.head == :call
+        if isa(x.args[1], Expr) && x.args[1].head == :vect &&
+            length(x.args[1].args) == 1
+            collectSymbols(x.args[1].args[1], set)
+        end
+        for y in rest(x.args,2)
+            collectSymbols(y, set)
+        end
+    elseif x.head == :(::)
+        collectSymbols(x.args[1], set)
+    end
+end
+
+hasDollarSigns(x) = false
+hasDollarSigns(x::Expr) = x.head == :$ || any(hasDollarSigns, x.args)
+
+evalTypes(x) = nothing
+function evalTypes(x::Expr)
+    if x.head == :(::)
+        x.args[2] = eval(x.args[2])
+    else
+        for a in x.args
+            evalTypes(a)
+        end
+    end
+end
+
+include("Rules/canonicalise.jl")
+include("Rules/numeric.jl")
+include("Rules/expand.jl")
+include("Rules/trigExpand.jl")
+
+# End Module Rules 
+end
+
+# End of Module
 end
