@@ -32,6 +32,7 @@ end
 # we just expand everything in one big go so we don't need to do much matching
 
 @defrule expand (*(a)) --> begin
+    # println("expand: $a")
     addve = Rewrite.getAlgebra(Val{:+}())
     mulve = Rewrite.getAlgebra(Val{:*}())
     word = Rewrite.toWord(mulve, a)
@@ -70,23 +71,30 @@ end
             push!(pow > 0 ? coeff : dcoeff, Rewrite.fromWord(mulve, [(fac,abs(pow))]))
         end
     end
-    if length(numFactors) <= 1 && length(denFactors) <= 1
+    # println(string("numFactors: ", numFactors))
+    # println(string("denFactors: ", denFactors))
+    # println(string("numc: ", coeffI, "; ",  coeff))
+    # println(string("denc: ", dcoeffI, "; ", dcoeff))
+    if (length(numFactors) == 0 || length(numFactors) == 1 && length(coeff) == 0) &&
+        (length(denFactors) == 0 || length(denFactors) == 1 && length(dcoeff) == 0)
         return a
     end
     if length(numFactors) == 0
         num = Expr(:call, :+, coeffI)
-    elseif length(numFactors) == 1
+    elseif length(numFactors) == 1 && length(coeff) == 0 && coeffI == 1
         num = Rewrite.fromWord(addve, numFactors[1])
     else
         num = distributeProduct(numFactors, coeff, coeffI)
     end
     if length(denFactors) == 0
         den = Expr(:call, :+, coeffI)
-    elseif length(denFactors) == 1
+    elseif length(denFactors) == 1 && length(dcoeff) == 0 && dcoeffI == 1
         den = Rewrite.fromWord(addve, denFactors[1])
     else
         den = distributeProduct(denFactors, coeff, coeffI)
     end
+    # println(string("num: ", num))
+    # println(string("den: ", den))
     if length(den.args) == 1 || length(den.args) == 2 && den.args[2] == 1
         if length(num.args) == 2
             num.args[2]

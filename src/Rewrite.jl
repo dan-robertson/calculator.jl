@@ -346,6 +346,8 @@ function fromWord(g::GroupAlgebra,::AdditionType,word)
     end
 end
 function fromWord(g::GroupAlgebra,::MultiplicationType,word)
+    top = Tuple{Any,Int}[]
+    bot = Tuple{Any,Int}[]
     top = collect((x,pow) for (x,pow) in word if pow > 0)
     bot = collect((x,-pow) for (x,pow) in word if pow < 0)
     xtop = ()
@@ -434,6 +436,7 @@ function matchAlgebra(g::GroupAlgebra, expr::Expr, matcher::Expr, mapping)
     if length(mappings) == 0
         throw(MatchingError(expr, matcher))
     else
+        # println("got: $mappings")
         collect(mappings)
     end
 end
@@ -579,7 +582,7 @@ function mag_helper_com1(g::GroupAlgebra, mappings::Set, mappingset, exword_iter
         end
         # we try skipping the current letter
         mag_helper_com1(g, mappings, mappingset, exword_iter, state2, maword_iter, maword_state,
-                        matcher, pow, exword_part, [exword_skip ; (x,pow)])
+                        matcher, pow, exword_part, [exword_skip ; (x,pow2)])
         # TODO: if abs(pow) > 1 try splitting it up. Should only do this if abs(pow) is small though
     else
         # Done
@@ -660,11 +663,48 @@ function shouldTryMatch(g::GroupAlgebra, matcher::Expr)
     end
 end
 
+# returns canonicalised expr, and bool specifying whether changed
+function canonicalise(expr, enclosingAlg)
+    # nothing to do
+    expr, false
+end
+
+function canonicalise(expr::Expr, enclosingAlg)
+    if expr.head == :call
+        alg = getAlgebra(Val{expr.args[1]}())
+        canons = Tuple{Any,Bool}[canonicalise(arg,alg) for arg in expr.args]
+        if alg == NoAlgebra() || alg == enclosingAlg
+            # default behaviour
+            if any(x->x[2], canons)
+                Expr(:call, (x for (x,b) in canons)...), true
+            else
+                expr, false
+            end
+        else
+            expr2 = if any(x->x[2], canons)
+                Expr(:call, (x for (x,b) in canons)...)
+            else
+                expr
+            end
+            word = toWord(alg, expr2)
+            fromWord(alg, word), true
+        end
+    else
+        canons = Tuple{Any,Bool}[canonicalise(arg,alg) for arg in expr.args]
+        if any(x->x[2], canons)
+            Expr(expr.head, (x for (x,b) in canons)...), true
+        else
+            expr, false
+        end
+    end
+end
+
 # onMatch should be :deeper => [try to match self again], do all rules on
 #                              depper subexprs, then try rules on result
 #                   :allRules => [try to match self again], try to match all rules,
 #                                try rules on deeper subexprs
 function _rewrite(expr, rules, rulestart, limit, n, allowImmediateRematch, onMatch, inAlg)
+    # println("_rewrite($expr, $rules, $rulestart, $limit, $n, $allowImmediateRematch, $onMatch, $inAlg)")
     if n >= limit
         return expr
     end
@@ -684,7 +724,7 @@ function _rewrite(expr, rules, rulestart, limit, n, allowImmediateRematch, onMat
         end
     end
     if ms != nothing
-        expr2 = substitute(ms...)
+        expr2, ignore = canonicalise(substitute(ms...), inAlg)
         n = n + 1
         if allowImmediateRematch
             n2 = n + 1
@@ -697,7 +737,7 @@ function _rewrite(expr, rules, rulestart, limit, n, allowImmediateRematch, onMat
                         if m[1] == pm
                             break
                         end
-                        expr2 = substitute(rule.sub, m[1])
+                        expr2, ignore = canonicalise(substitute(rule.sub, m[1]), inAlg)
                         pm = m[1]
                     else
                         break
@@ -719,7 +759,7 @@ function _rewrite(expr, rules, rulestart, limit, n, allowImmediateRematch, onMat
             rewritten = [i == 1 ? arg :
                          _rewrite(arg, rules, 1, limit, n, allowImmediateRematch, onMatch, alg)
                          for (i,arg) in enumerate(expr.args)]
-            Expr(:call, rewritten...)
+            canonicalise(Expr(:call, rewritten...), inAlg)[1]
         else
             expr
         end
@@ -819,6 +859,7 @@ macro defrules(name, kvs...)
     rulefun = Expr(:(=), fdef, fcall)
     quote
         $rulesname = Rule[]
+        export $fname
         $rulefun
     end
 end
