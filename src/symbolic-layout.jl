@@ -167,7 +167,7 @@ greekNameMap = Dict(
 )
 fstring(sym::Symbol) = sym ∈ keys(greekNameMap) ? greekNameMap[sym] : sym
 
-function renderStackItem!(b::DLB, item::ReduceWrapper, x, bottom, w)
+function renderStackItem!(b::DLB, item::SymbolicWrapper, x, bottom, w)
     # we ignore w
     # which is probably wrong
     layout = layoutExpr(b, item.val)

@@ -13,7 +13,7 @@ algebraicButtons = let l(x) = Button(Calc.OperationDescription(string(x), "", Ca
                        deadb = Calc.DeadButton(),
                        backb = Button(Calc.OperationDescription("back", "close this submenu",
                                                                 Calc.CloseSubMenuOperation()))
-    [backb deadb deadb deadb deadb
+    [backb expand trigExpand deadb deadb
      l(:a) l(:b) l(:c) l(:d) l(:e)
      l(:f) l(:g) l(:h) deadb deadb
      l(:i) l(:j) l(:k) l(:m) l(:n)

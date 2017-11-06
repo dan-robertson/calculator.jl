@@ -16,23 +16,23 @@ function hasMethod(stack::Stack, op, arity=2)
         length(ms) > 0
     end
 end
-function applyOp(stack::Stack, op, arity=2; splat=false)
+function applyOp(stack::Stack, op, arity=2; splat=false, simplification=NumericSimplification())
     try
         newItem = op(stack.items[end-arity+1:end]...)
         toPush = splat ? length(newItem) : 1
         newStack = if arity < toPush
             if splat
-                [stack.items[1:end-arity] ; newItem]
+                [stack.items[1:end-arity] ; simplify(simplification, newItem)]
             else
-                [stack.items[1:end-arity] ; [newItem]]
+                [stack.items[1:end-arity] ; [simplify(simplification, x) for x in newItem]]
             end
         elseif splat
             ns = stack.items[1:end-arity+toPush]
-            ns[end-toPush+1:end] = newItem
+            ns[end-toPush+1:end] = [simplify(simplification, x) for x in newItem]
             ns
         else
             ns = stack.items[1:end-arity+1]
-            ns[end] = newItem
+            ns[end] = simplify(simplification, newItem)
             ns
         end
         Stack(newStack)

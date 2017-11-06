@@ -13,3 +13,5 @@ simplify(simp::NoSimplification, x) = x
 type NumericSimplification <: Simplification end
 
 simplify(simp::NumericSimplification, num :: Irrational) = BigFloat(num)
+
+type Canonicalisation <: Simplification end

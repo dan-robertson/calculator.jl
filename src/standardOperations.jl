@@ -4,6 +4,8 @@ using Calc: FlagButton, Button
 using Calc: Multibutton, OperationDescription, StandardOperation, SplattingOperation
 using Calc: InsertionOperation
 using Calc: NegationOperation, BackspaceOperation, EnterOperation
+using Calc: swrap, SymbolicWrapper
+import Rewrite
 
 export inverse, hyperbolic
 inverse = FlagButton(:inverse, "Inv")
@@ -235,6 +237,19 @@ doublefactorial = Multibutton(() => doublefactorialo, (:inverse,) => doublefacto
 export gamma, beta
 gamma = Button(OperationDescription("Γ", "the gamma function", StandardOperation(Base.Math.gamma, 1)))
 beta = Button(OperationDescription("β", "the beta function", StandardOperation(Base.Math.beta, 2)))
+
+
+
+# algebra
+
+export expand, trigExpand
+macro swrap(fun)
+    :((x) -> swrap($fun(convert(SymbolicWrapper, x).val)))
+end
+expand = Button(OperationDescription("expand", "expand products",
+                                     StandardOperation(@swrap(Rewrite.Rules.expand), 1)))
+trigExpand = Button(OperationDescription("trigExpand", "expand trig functions",
+                                         StandardOperation(@swrap(Rewrite.Rules.trigExpand), 1)))
 
 
 end

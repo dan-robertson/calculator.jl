@@ -346,8 +346,6 @@ function fromWord(g::GroupAlgebra,::AdditionType,word)
     end
 end
 function fromWord(g::GroupAlgebra,::MultiplicationType,word)
-    top = Tuple{Any,Int}[]
-    bot = Tuple{Any,Int}[]
     top = collect((x,pow) for (x,pow) in word if pow > 0)
     bot = collect((x,-pow) for (x,pow) in word if pow < 0)
     xtop = ()
