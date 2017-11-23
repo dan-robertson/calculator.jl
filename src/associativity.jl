@@ -29,10 +29,19 @@ import Calc: associativity, LeftAssociative, RightAssociative, FullyAssociative
 dequote(s::Symbol) = s
 dequote(s::QuoteNode) = dequote(s.value)
 dequote(t::Tuple) = map(dequote, t)
-dequote(e::Expr) = e.head == :quote ? e.args[1] : error("not a symbol")
+function dequote(e::Expr)
+    if e.head == :quote 
+        e.args[1]
+    elseif e.head == :globalref
+        dequote(e.args[2])
+    else 
+        error("not a symbol: $e")
+    end
+end
 
 macro assoc(t, sym)
     sym = dequote(sym)
+    t = dequote(t)
     if isa(sym, Tuple{Vararg{Symbol}})
         if length(sym) > 1
             return :(@assoc $t $(sym[1]) ; @assoc $t $(sym[2:end]))

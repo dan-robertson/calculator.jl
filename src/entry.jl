@@ -44,7 +44,7 @@ morallyNothing(x :: ComplexEntry) = false
 
 function renderStackItem!(b :: DLB, item :: RealEntry, x, bottom, w)
     y = bottom-30
-    pushText!(b, Rect(x,y,w,30), Colour(0), (0,20), string(item))
+    pushText!(b, Rect(x,y,w,30), getFont(b,font), Colour(0), (0,20), string(item))
     y
 end
 function renderStackItem!{T}(b :: DLB, item :: ComplexEntry{T}, x, bottom, w)
@@ -60,16 +60,16 @@ function renderStackItem!{T}(b :: DLB, item :: ComplexEntry{T}, x, bottom, w)
         error("not right : $(typeof(item))")
     end
     if morallyNothing(item.realPart) && T == :imaginary
-        w2,lot2 = simpleTextLayout(shapeText(b, string(item.imagPart)))
-        w3,lot3 = simpleTextLayout(shapeText(b, "i"))
+        w2,lot2 = simpleTextLayout(shapeText(getFont(font,b), string(item.imagPart)))
+        w3,lot3 = simpleTextLayout(shapeText(getFont(font,b), "i"))
         pushText!(b, Rect(x,y,min(w2,w),30), imagCol, lot2)
         pushText!(b, Rect(x+w2,y,min(w2+w3,w)-w2,30), unfocusedColour, lot3)
     else
         s = sign(item.imagPart) == -1 ? '−' : '+'
-        w1,lot1 = simpleTextLayout(shapeText(b, string(item.realPart)))
-        w2,lot2 = simpleTextLayout(shapeText(b, " $s "))
-        w3,lot3 = simpleTextLayout(shapeText(b, iszero(item.imagPart) && T == :real ? "0" : string(item.imagPart; showsign=false)))
-        w4,lot4 = simpleTextLayout(shapeText(b, "i"))
+        w1,lot1 = simpleTextLayout(shapeText(getFont(font,b), string(item.realPart)))
+        w2,lot2 = simpleTextLayout(shapeText(getFont(font,b), " $s "))
+        w3,lot3 = simpleTextLayout(shapeText(getFont(font,b), iszero(item.imagPart) && T == :real ? "0" : string(item.imagPart; showsign=false)))
+        w4,lot4 = simpleTextLayout(shapeText(getFont(font,b), "i"))
         if w1 + w2 + w3 + w4 > w && w1 > 20
             y = y-30
             pushText!(b, Rect(x,y,min(w1,w),30), realCol, lot1)

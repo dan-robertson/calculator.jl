@@ -40,12 +40,36 @@ end
 
 
 function openWindow(s :: CalcState)
-    lastSize = (600,800)
-    newWindow("Calculator", lastSize, function (b,size)
-              lastSize = renderCalc(b, size, s)
-              end, function (e)
-              handleMouseEvent(s, lastSize, e)
-              end)
+    size = (600,800)
+    win = newWindow("Calculator", size)
+    while true
+        b, size = getBuilder(win)
+        renderCalc(b, size, s)
+        buildFrame(win, b)
+
+        shouldUpdate = false
+        canUpdate = false
+        while !(shouldUpdate && canUpdate)
+            if canUpdate
+                event = getEvent(win, !shouldUpdate);
+            else
+                event = pollEvent(win)
+                if event == NoEvent()
+                    canUpdate = true
+                    continue
+                end
+            end
+            if event isa ClosedEvent
+                closeWindow(win)
+                return
+            elseif event isa ResizeEvent
+                shouldUpdate = true
+                size = (event.width, event.height)
+            elseif event != nothing
+                shouldUpdate = handleEvent(s, size, event) || shouldUpdate
+            end
+        end
+    end
 end
 
 buttonWidthRatio = 1/3
@@ -100,7 +124,12 @@ function renderCalc(b, size, s :: CalcState)
     end
     em = s.errorMessage == nothing ? [] : [s.errorMessage]
     renderMessage(b, Rect(0,0,w,40), em, Colour(0.6,0.1,0.1))
-    size
+end
+
+function handleEvent(s :: CalcState, size, e) false end
+function handleEvent(s :: CalcState, size, e :: MouseEvent)
+    handleMouseEvent(s, size, e)
+    true
 end
 
 function handleMouseEvent(s :: CalcState, size, e :: MouseEvent)

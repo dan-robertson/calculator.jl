@@ -5,7 +5,7 @@ type Multibutton <: Button
     Multibutton(op :: OperationDescription) = new(Dict(Modifiers() => op), 1, 1)
     Multibutton(op :: OperationDescription, w :: Integer, h :: Integer) = Button(Multibutton(op),w,h)
     Multibutton(m :: Dict{Modifiers, OperationDescription}, w :: Integer, h :: Integer) = new(m,w,h)
-    Multibutton(ops :: Pair{TypeVar(:T), OperationDescription}...) =
+    Multibutton(ops :: (Pair{T, OperationDescription} where {T})...) =
         new(Dict{Modifiers,OperationDescription}(Modifiers(x[1]...) => x[2] for x in ops), 1, 1)
 end
 type FlagButton{Flag} <: Button

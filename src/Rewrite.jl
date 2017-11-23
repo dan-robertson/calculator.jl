@@ -1,6 +1,7 @@
 module Rewrite
 
 using FunctionalCollections
+using Base.Iterators
 
 ### This does algebra (in the 18th century sense) by rewrite rules.
 
@@ -28,7 +29,8 @@ using FunctionalCollections
 ## in which case it is called with the mapping as KW arguments
 ## or for it to be an Expr in which case any matching symbols are substituted
 
-const Mapping = PersistentHashMap{TypeVar(:S,Symbol,Any), TypeVar(:T,Any)}
+#const Mapping = PersistentHashMap{TypeVar(:S,Symbol,Any), TypeVar(:T,Any)}
+const Mapping = PersistentHashMap{S,T} where {S<:Symbol,T}
 const emptyMapping = phmap()
 immutable ReallyNotFound end
 
@@ -268,7 +270,7 @@ function multiplyWords(g, words...)
     if g.commutative
         d = Dict()
         for wordy in words
-            word = isa(wordy, NTuple{2}) ? [wordy] : wordy
+            word = isa(wordy, Tuple{T,S} where {T,S}) ? [wordy] : wordy
             for (exp,pow) in word
                 newPow = pow + get(d,exp,0)
                 if newPow != 0
@@ -282,7 +284,7 @@ function multiplyWords(g, words...)
     else
         w = []
         for wordy in words
-            word = isa(wordy, NTuple{2}) ? [wordy] : wordy
+            word = isa(wordy, Tuple{T,S} where {T,S}) ? [wordy] : wordy
             for (x,pow) in words
                 if pow != 0 && x != g.identity
                     if length(w) > 0 && w[end][1] == x
@@ -307,7 +309,7 @@ function multiplyWords(g, words...)
     end
 end
 
-invWord(g,word::NTuple{2}) = [(word[1],-word[2])]
+invWord(g,word::Tuple{T,S} where {T,S}) = [(word[1],-word[2])]
 function invWord(g,word)
     if g.commutative
         collect((x,-p) for (x,p) in word)
@@ -317,7 +319,7 @@ function invWord(g,word)
 end
 
 fromWord(g::GroupAlgebra,word) = fromWord(g,g.canonicaliseType,word)
-function fromWord(g::GroupAlgebra,word::NTuple{2})
+function fromWord(g::GroupAlgebra,word::Tuple{T1,T2} where {T1,T2})
     if word[2] == 1
         word[1]
     elseif word[2] == -1
@@ -346,6 +348,8 @@ function fromWord(g::GroupAlgebra,::AdditionType,word)
     end
 end
 function fromWord(g::GroupAlgebra,::MultiplicationType,word)
+    top = Tuple{Any,Int}[]
+    bot = Tuple{Any,Int}[]
     top = collect((x,pow) for (x,pow) in word if pow > 0)
     bot = collect((x,-pow) for (x,pow) in word if pow < 0)
     xtop = ()
@@ -794,6 +798,7 @@ macro rule(expr::Expr)
     matcher = expr.args[1]
     evalTypes(matcher)
     substituter = expr.args[2]
+    evalTypes(substituter)
     if (isa(substituter, Expr) && substituter.head == :block) || hasDollarSigns(substituter)
         # make a plain function
         symbols = Set()
@@ -885,8 +890,17 @@ evalTypes(x) = nothing
 function evalTypes(x::Expr)
     if x.head == :(::)
         x.args[2] = eval(x.args[2])
+        if x.args[1] isa Expr && x.args[1].head == :globalref
+            x.args[1] = x.args[1].args[2]
+        else
+            evalTypes(x.args[1])
+        end
     else
-        for a in x.args
+        for (i,a) in enumerate(x.args)
+            if a isa Expr && a.head == :globalref
+                a = a.args[2]
+                x.args[i] = a
+            end
             evalTypes(a)
         end
     end

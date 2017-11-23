@@ -6,6 +6,7 @@ module Calc
 export test
 
 include("stack.jl") # Stack type, push, hasMethod, applyOp
+include("se.jl") # s-expression parser for events
 include("wr.jl") # primitive rendering
 include("rendering.jl")
 include("state.jl") # also how to render CalcState

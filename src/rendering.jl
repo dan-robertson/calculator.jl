@@ -1,6 +1,6 @@
 # rendering the various parts of the calculator
 
-
+font = FontRequest("DejaVu Sans", 20)
 # render for stack
 # should return new value for bottom
 # default: call show and don't line wrap
@@ -11,7 +11,7 @@ function renderStackItem!(b::DLB, item, x, bottom, w)
     shown = takebuf_string(buf)
     lines = split(shown, r"\r?\n") # get lines
     for line in lines[end:-1:1]
-        shape = shapeText(b, line)
+        shape = shapeText(getFont(b,font), line)
         (w,lot) = simpleTextLayout(shape)
         y = bottom-30
         pushText!(b, Rect(x,y,w,30), Colour(0), lot)
@@ -32,7 +32,7 @@ function renderStack!(b, stack::Stack, bottom, width, entry=nothing)
     for (n,item) in enumerate(stack.items[end:-1:1])
         newbottom = renderStackItem!(b, item, x, bottom, width)
         # generate a number for the item
-        (w,lot) = simpleTextLayout(shapeText(b, dec(n) * ":"))
+        (w,lot) = simpleTextLayout(shapeText(getFont(b,font), dec(n) * ":"))
         pushText!(b, Rect(x1-w, newbottom, w, 30), Colour(0.6), lot)
         if newbottom <= 0
             break
@@ -132,7 +132,7 @@ end
 
 function renderButton(b, state, text::String, r::Rect, colour::Colour)
     pushRect!(b, Rect(r.x+1,r.y+1, r.w-2, r.h-2), colour)
-    shape = shapeText(b, text)
+    shape = shapeText(getFont(b,font), text)
     (w,lot) = simpleTextLayout(shape)
     x = r.x + (r.w - w) / 2
     y = r.y + (r.h - 30) / 2
@@ -179,5 +179,5 @@ function renderMessage(b, rect, messages, colour=Colour(0))
         top = messages[end]
     end
     pushRect!(b, rect, Colour(1))
-    pushText!(b, rect, colour, (30,20), top.text)
+    pushText!(b, rect, getFont(b,font), colour, (30,20), top.text)
 end

@@ -20,7 +20,7 @@ end
 function render(::DLB,::Float32,::Float32,::LayoutData{Void}) end
 
 function layoutString(b :: DLB, str)
-    shape = shapeText(b, str)
+    shape = shapeText(getFont(b,font), str)
     w,lot = simpleTextLayout(shape)
     LayoutData{LaidOutText}(20,5,w,lot)
 end
