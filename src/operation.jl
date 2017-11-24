@@ -1,8 +1,8 @@
 # OperationContext defined in state.jl, near CalcState
 immutable DefaultContext <: OperationContext end
 # Operation defined in rendering.jl, near Button
-abstract CommittingOperation <: Operation
-abstract EntrySpecialOperation <: Operation # special behaviour when there is an entry
+abstract type CommittingOperation <: Operation end
+abstract type EntrySpecialOperation <: Operation end # special behaviour when there is an entry
 immutable StandardOperation <: CommittingOperation
     func
     arity :: Int64

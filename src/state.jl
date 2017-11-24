@@ -15,7 +15,7 @@ function Base.:∈(flag :: Symbol, m :: Modifiers)
         false
     end
 end
-abstract OperationContext # e.g. mapping/reducing over a vector
+abstract type OperationContext end # e.g. mapping/reducing over a vector
 
 type CalcState
     mainButtons :: Array{Button,2} # The main set of buttons.

@@ -43,7 +43,7 @@ end
 
 
 # Buttons
-abstract Operation
+abstract type Operation end
 
 type OperationDescription
     name :: String
@@ -51,7 +51,7 @@ type OperationDescription
     operation :: Operation
 end
 
-abstract Button
+abstract type Button end
 
 type DeadButton <: Button end # a disabled button with no text
 type Button1 <: Button

@@ -180,7 +180,7 @@ function matchExpr(::Val{:call}, expression, matcher::Expr, mapping)
     matchAlgebra(alg, expression, matcher, mapping)
 end
 
-abstract Algebra
+abstract type Algebra end
 immutable NoAlgebra <: Algebra end
 immutable GroupAlgebra <: Algebra
     identity               # e.g. 0   1    Arity 0
@@ -192,7 +192,7 @@ immutable GroupAlgebra <: Algebra
     commutative :: Bool
     canonicaliseType
 end
-abstract Canonicalisation
+abstract type Canonicalisation end
 immutable AdditionType <: Canonicalisation end
 immutable MultiplicationType <: Canonicalisation end
 
@@ -776,6 +776,7 @@ end
 module Rules
 
 import Rewrite
+using Base.Iterators
 using Rewrite: Rule, rewrite
 
 """

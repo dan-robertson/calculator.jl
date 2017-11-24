@@ -1,4 +1,4 @@
-abstract Simplification
+abstract type Simplification end
 
 #maybe we should change things so with NoSimplification, a + b
 #generates the expression :(a + b), while AlmostNoSimplification would

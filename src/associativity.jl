@@ -1,4 +1,4 @@
-abstract Associativity
+abstract type Associativity end
 immutable LeftAssociative <: Associativity end
 immutable RightAssociative <: Associativity end
 immutable FullyAssociative <: Associativity end

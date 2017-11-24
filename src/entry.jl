@@ -7,8 +7,8 @@ immutable Backspace end # when used and an empty string would be given, initial 
 
 immutable ComplexPartSwitch end # switches from realpart to imagpart
 
-abstract Entry
-abstract RealEntry <: Entry
+abstract type Entry end
+abstract type RealEntry <: Entry end
 
 immutable IntegerEntry <: RealEntry
     digits :: String

@@ -39,11 +39,11 @@ export ResizeEvent, FocusEvent, BlurEvent, ClosedEvent
 export KeyboardEvent, ReceivedCharacter, KeyPressEvent, KeyReleaseEvent
 # Is this horrid?
 immutable NoEvent end
-abstract Event
-abstract MouseEvent <: Event
-abstract MouseButtonEvent <: MouseEvent
-abstract MouseButtonPressedEvent <: MouseButtonEvent
-abstract MouseButtonReleasedEvent <: MouseButtonEvent
+abstract type Event end
+abstract type MouseEvent <: Event end
+abstract type MouseButtonEvent <: MouseEvent end
+abstract type MouseButtonPressedEvent <: MouseButtonEvent end
+abstract type MouseButtonReleasedEvent <: MouseButtonEvent end
 immutable LeftMouseButtonPressed <: MouseButtonPressedEvent
     x::Float32
     y::Float32
@@ -89,7 +89,7 @@ end
 immutable FocusEvent <: Event end
 immutable BlurEvent <: Event end
 immutable ClosedEvent <: Event end
-abstract KeyboardEvent <: Event
+abstract type  KeyboardEvent <: Event end
 immutable ReceivedCharacter <: KeyboardEvent
     char::Char
 end
