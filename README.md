@@ -13,7 +13,7 @@ We try to use introspection to determine whether the operation
 corresponding to a button may be done however this does not always
 work. For example a matching method exists to compute `besselj` with
 complex bigfloats however this method throws an error immediately.
-There seems to be know good way to speculatively call these existing
+pnThere seems to be know good way to speculatively call these existing
 methods without having the potential cost (in terms of time) of them
 running to completion. We would not want the calculator to attempt to
 sum two vectors of 100 million items to determine whether or not they
@@ -42,7 +42,7 @@ A sample of operations currently included are
 * mapping an operation over each element of a vector
 * reducing a vector by putting an operation between each element (with
   associativity appropriate to the operator)
-* some (still limited) algebra via [Reduce.jl](https://github.com/chakravala/Reduce.jl)
+* ~some (still limited) algebra via [Reduce.jl](https://github.com/chakravala/Reduce.jl)~
 
 The user interface is based
 on [WebRender UI](https://github.com/dan-robertson/wrui) with a small
@@ -60,7 +60,34 @@ Currently we do not build this into any kind of standalone executable. Run
     ...
     julia> Calc.test()
 
-Press `escape` to exit the calculator.
+Press `Escape` to exit the calculator.
+
+Keyboard shortcuts are:
+
+* `0-9` `.` enter numbers
+* `n` negate (works on partially entered numbers)
+* `i` (2:) + i*(1:), or switch between real/complex part when entering number
+* `Enter` push partially entered number onto stack; duplicate item on top of stack
+* `Backspace` backspace when entering, delete the last element if
+  partially entering a vector, otherwise drop the top element of the
+  stack.
+* `+` `-` `*` `/` `^` normal arithmetic operations
+* `Tab` swap top two stack elements
+* `I` Inverse...
+* `H` Hyperbolic...
+* `P` enter pi (see also `IP`, `HP`, `HIP` for other constants)
+* `Q` square root
+* `E` exponential function
+* `L` natural logarithm
+* `S` sine
+* `C` cosine
+* `T` tangent
+* `R` round
+* `F` floor
+* `A` absolute value
+* `&` multiplicative inverse
+* `[` `,` `]` enter vectors
+* `Escape` quit
 
 # Roadmap
 
