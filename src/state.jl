@@ -24,20 +24,23 @@ type CalcState
     currentEntry
     highlightedButton
     pressedButton
+    flashingButton
+    flashingButtonDone :: UInt64
     statusMessage :: Array{Message, 1} # a stack of messages where we display the top valid one
     errorMessage
     modifiers :: Modifiers
     operationContext :: OperationContext
+    shouldClose :: Bool
     function CalcState()
         mainButtons = ButtonLayout.mainButtons
         extraButtons = ButtonLayout.extraButtons
         stack = Stack(Any[])
         new(mainButtons, [extraButtons],
-            stack, nothing, nothing, nothing, Message[], nothing, Modifiers(),
-            DefaultContext())
+            stack, nothing, nothing, nothing, nothing, 0,
+            Message[], nothing, Modifiers(),
+            DefaultContext(), false)
     end
 end
-
 
 function openWindow(s :: CalcState)
     size = (600,800)
@@ -49,14 +52,29 @@ function openWindow(s :: CalcState)
 
         shouldUpdate = false
         canUpdate = false
+        canblock, timers = canBlock(s)
         while !(shouldUpdate && canUpdate)
-            if canUpdate
+            if s.shouldClose
+                closeWindow(win)
+                return
+            end
+            if canUpdate && canblock
                 event = getEvent(win, !shouldUpdate);
             else
                 event = pollEvent(win)
                 if event == NoEvent()
                     canUpdate = true
-                    continue
+                    if canblock
+                        continue
+                    else
+                        time = time_ns()
+                        if all(x > time for x in timers)
+                            sleep(0.001)
+                        else
+                            shouldUpdate = true
+                        end
+                        continue
+                    end
                 end
             end
             if event isa ClosedEvent
@@ -70,6 +88,14 @@ function openWindow(s :: CalcState)
             end
         end
     end
+end
+
+function canBlock(s :: CalcState)
+    time = time_ns()
+    ends = Int64[ s.flashingButtonDone ; [ m.doneBy for m in s.statusMessage ] ]
+    ans = all(x < time for x=ends)
+    matters = [e for e in ends if e > time]
+    ans,matters
 end
 
 buttonWidthRatio = 1/3
@@ -126,7 +152,43 @@ function renderCalc(b, size, s :: CalcState)
     renderMessage(b, Rect(0,0,w,40), em, Colour(0.6,0.1,0.1))
 end
 
+# should return bool: whether or not we should update
 function handleEvent(s :: CalcState, size, e) false end
+
+function handleEvent(s :: CalcState, size, e :: ReceivedCharacter)
+    candidates = Button[]
+    char = e.char
+    if char == '\e'
+        s.shouldClose = true
+        return true
+    end
+    for (rect, buttons) in positionButtons(s, size)[2] # we look at the available buttons
+        for button in buttons
+            if char ∈ buttonChars(button) && button ∉ candidates
+                push!(candidates, button)
+            end
+        end
+    end
+    if length(candidates) > 1
+        print("Multiple possible buttons for char ")
+        show(char)
+        println()
+        false
+    elseif length(candidates) == 1
+        button = candidates[1]
+        s.highlightedButton = nothing
+        s.flashingButton = button
+        s.flashingButtonDone = time_ns() + 1000000 * 200
+        buttonClicked(s,button)
+        true
+    else
+        print("No button for char ")
+        show(char)
+        println()
+        false
+    end
+end
+
 function handleEvent(s :: CalcState, size, e :: MouseEvent)
     handleMouseEvent(s, size, e)
     true
@@ -176,6 +238,7 @@ end
 function handleMouseEvent(b :: Button, s, e :: LeftMouseButtonReleased, isSubMenu)
     if s.pressedButton == b
         buttonClicked(s, b)
+        s.pressedButton = nothing
         if isSubMenu && length(s.buttons) > 1 && shouldCloseSubMenus(s, b)
             s.buttons = s.buttons[1:1] # pop everything
         end
@@ -189,7 +252,7 @@ end
 function displayError(s :: CalcState, e :: Exception)
     buf = IOBuffer()
     showerror(buf, e)
-    displayError(s, takebuf_string(buf))
+    displayError(s, string(take!(buf)))
 end
 
 function displayMessage(s :: CalcState, message, duration = 500)

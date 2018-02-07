@@ -26,7 +26,9 @@ mutable struct FontRequest
 end
 
 
-module EventParse
+baremodule EventParse
+
+using Base: ==, getindex
 
 export Event, NoEvent, MouseEvent, MouseButtonEvent
 export MouseButtonPressedEvent, MouseButtonReleasedEvent
@@ -110,27 +112,22 @@ function MOUSEMOVED(x, y)
     global mouseLast = (x,y)
     MouseMoveEvent(x, y)
 end
-LEFT = :LEFT
-RIGHT = :RIGHT
-MIDDLE = :middle
-PRESSED = :press
-RELEASED = :release
 MOUSEINPUT(typ, but::Symbol, pos::Void) = MOUSEINPUT(typ, but, mouseLast)
 function MOUSEINPUT(typ, but::Symbol, pos)
-    func = if typ == :press
+    func = if typ == :PRESSED
         if but == :LEFT
             LeftMouseButtonPressed
         elseif but == :RIGHT
             RightMouseButtonPressed
-        elseif but == :middle
+        elseif but == :MIDDLE
             MiddleMouseButtonPressed
         end
-    elseif typ == :release
+    elseif typ == :RELEASED
         if but == :LEFT
             LeftMouseButtonReleased
         elseif but == :RIGHT
             RightMouseButtonReleased
-        elseif but == :middle
+        elseif but == :MIDDLE
             MiddleMouseButtonReleased
         end
     end
@@ -140,9 +137,9 @@ CLOSED = ClosedEvent()
 RECEIVEDCHARACTER = ReceivedCharacter
 # what to do when button is NIL?
 function KEYBOARDINPUT(typ, sc, button::Symbol)
-    if typ == :press
+    if typ == :PRESSED
         KeyPressEvent{button}(sc)
-    elseif typ == :release
+    elseif typ == :RELEASED
         KeyReleaseEvent{button}(sc)
     else
         error("unknown keyboard event type")
@@ -179,6 +176,8 @@ function parseEvent(s::AbstractString)
         else
             return e
         end
+    catch err
+        # warn(err)
     end
     warn("unknown event $s")
     return nothing

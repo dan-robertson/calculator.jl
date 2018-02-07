@@ -8,7 +8,7 @@ function renderStackItem!(b::DLB, item, x, bottom, w)
     buf = IOBuffer()
     stream = IOContext(buf, compact = true, limit = true)
     show(stream, item) # Maybe use display instead
-    shown = takebuf_string(buf)
+    shown = String(take!(buf))
     lines = split(shown, r"\r?\n") # get lines
     for line in lines[end:-1:1]
         shape = shapeText(getFont(b,font), line)
@@ -58,20 +58,37 @@ type Button1 <: Button
     op :: OperationDescription
     w :: Int64
     h :: Int64
+    char :: Union{Void,Char}
     function Button1(op :: OperationDescription)
-        new(op, 1, 1)
+        new(op, 1, 1, nothing)
+    end
+    function Button1(op :: OperationDescription, char :: Char)
+        new(op, 1, 1, char)
     end
     function Button1(op :: OperationDescription, w :: Integer, h :: Integer)
-        new(op,convert(Int64, w),convert(Int64, h))
+        new(op,convert(Int64, w),convert(Int64, h),nothing)
+    end
+    function Button1(op :: OperationDescription, w :: Integer, h :: Integer, char :: Char)
+        new(op,convert(Int64, w),convert(Int64, h),char)
     end
     function Button1(b :: Button1, w :: Integer, h :: Integer)
-        new(b.op,convert(Int64, w),convert(Int64, h))
+        new(b.op,convert(Int64, w),convert(Int64, h),b.char)
+    end
+    function Button1(b :: Button1, w :: Integer, h :: Integer, char :: Char)
+        new(b.op,convert(Int64, w),convert(Int64, h),char)
+    end
+    function Button1(b :: Button1, char :: Char)
+        new(b.op,b.w,b.h,char)
     end
 end
 
 Button(op :: OperationDescription) = Button1(op)
 Button(op :: OperationDescription, w :: Integer, h :: Integer) = Button1(op, w, h)
-Button(b :: Button1, w :: Integer, h :: Integer) = Button(b.op, w, h)
+Button(b :: Button1, w :: Integer, h :: Integer) = Button1(b, w, h)
+Button(op :: OperationDescription, w :: Integer, h :: Integer, char :: Char) = Button1(op, w, h, char)
+Button(b :: Button1, w :: Integer, h :: Integer, char :: Char) = Button1(b.op, w, h, char)
+Button(op :: OperationDescription, char :: Char) = Button1(op, char)
+Button(b :: Button1, char :: Char) = Button1(b, char)
 
 buttonHint(op :: OperationDescription, s) = op.description
 buttonHint(b :: Button1, s) = buttonHint(b.op, s)
@@ -80,6 +97,17 @@ buttonHint(x, s) = ""
 buttonSize(b) = (b.w, b.h)
 buttonSize(b :: Button1) = (b.w, b.h)
 buttonSize(b :: DeadButton) = (1, 1)
+
+function buttonChars(b)
+    chr = buttonChar(b)
+    if chr == nothing
+        ""
+    else
+        string(chr :: Char)
+    end
+end
+buttonChar(b) = nothing
+buttonChar(b :: Button1) = b.char
 
 function renderButtons(b, state, r::Rect, buttons::Array{Button, 2}, highlightedButton=nothing)
     # draw a background for all the buttons
@@ -110,7 +138,10 @@ function renderButtons(b, state, r::Rect, buttons::Array{Button, 2}, highlighted
                 renderButton(b, state, button,
                              Rect(r.x+(col-1)*cellw, r.y+(row-1)*cellh,
                                   cellw*bw, cellh*bh),
-                             button == highlightedButton)
+                             button == highlightedButton
+                             || highlightedButton == nothing
+                                && button == state.flashingButton
+                                && state.flashingButtonDone >= time_ns())
                 # mark as rendered
                 for ro=row:row+bh-1
                     for co=col:col+bw-1

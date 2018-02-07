@@ -60,16 +60,16 @@ function renderStackItem!{T}(b :: DLB, item :: ComplexEntry{T}, x, bottom, w)
         error("not right : $(typeof(item))")
     end
     if morallyNothing(item.realPart) && T == :imaginary
-        w2,lot2 = simpleTextLayout(shapeText(getFont(font,b), string(item.imagPart)))
-        w3,lot3 = simpleTextLayout(shapeText(getFont(font,b), "i"))
+        w2,lot2 = simpleTextLayout(shapeText(getFont(b,font), string(item.imagPart)))
+        w3,lot3 = simpleTextLayout(shapeText(getFont(b,font), "i"))
         pushText!(b, Rect(x,y,min(w2,w),30), imagCol, lot2)
         pushText!(b, Rect(x+w2,y,min(w2+w3,w)-w2,30), unfocusedColour, lot3)
     else
         s = sign(item.imagPart) == -1 ? '−' : '+'
-        w1,lot1 = simpleTextLayout(shapeText(getFont(font,b), string(item.realPart)))
-        w2,lot2 = simpleTextLayout(shapeText(getFont(font,b), " $s "))
-        w3,lot3 = simpleTextLayout(shapeText(getFont(font,b), iszero(item.imagPart) && T == :real ? "0" : string(item.imagPart; showsign=false)))
-        w4,lot4 = simpleTextLayout(shapeText(getFont(font,b), "i"))
+        w1,lot1 = simpleTextLayout(shapeText(getFont(b,font), string(item.realPart)))
+        w2,lot2 = simpleTextLayout(shapeText(getFont(b,font), " $s "))
+        w3,lot3 = simpleTextLayout(shapeText(getFont(b,font), iszero(item.imagPart) && T == :real ? "0" : string(item.imagPart; showsign=false)))
+        w4,lot4 = simpleTextLayout(shapeText(getFont(b,font), "i"))
         if w1 + w2 + w3 + w4 > w && w1 > 20
             y = y-30
             pushText!(b, Rect(x,y,min(w1,w),30), realCol, lot1)
@@ -253,7 +253,7 @@ module DigitButtons
 using Calc: Button, Digit, EntryOperation, OperationDescription, DecimalPoint
 using Calc: FloatEntry, IntegerEntry, NegationOperation, MakeComplexOperation
 export digits, negate, plusi
-b(d) = Button(OperationDescription(d, "", EntryOperation(Digit(d[1]))))
+b(d) = Button(OperationDescription(d, "", EntryOperation(Digit(d[1]))),d[1])
 b0 = Button(b("0"))
 b1 = b("1")
 b2 = b("2")
@@ -266,10 +266,10 @@ b8 = b("8")
 b9 = b("9")
 bdot = Button(OperationDescription(".", "",
                                    EntryOperation(FloatEntry(IntegerEntry("0"),IntegerEntry("")),
-                                                  DecimalPoint())))
-negate = Button(OperationDescription("+/-", "negate", NegationOperation()))
+                                                  DecimalPoint())), '.')
+negate = Button(OperationDescription("+/-", "negate", NegationOperation()), 'n')
 plusi = Button(OperationDescription("+i", "make a complex number from real and imaginary parts",
-                                    MakeComplexOperation()))
+                                    MakeComplexOperation()), 'i')
 
 digits = [b7 b8 b9
           b4 b5 b6
